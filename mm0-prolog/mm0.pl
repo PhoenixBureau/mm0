@@ -1,7 +1,6 @@
 
 
-mm0_file([Statement|Rest]) --> statement(Statement), mm0_file(Rest).
-mm0_file([]) --> [], !.
+mm0_file(Statements) --> z(statement, Statements).
 
 
 % Lexxer.
@@ -44,8 +43,7 @@ ident_chars([]) --> [], !.
 
 number([Ch|Rest]) --> digit_non_zero(Ch), digits(Rest).
 
-digits([Ch|Rest]) --> digit(Ch), digits(Rest).
-digits([]) --> [], !.
+digits(Digits) --> z(digit, Digits).
 
 mstr([Ch|Rest]) --> [Ch], { nonvar(Ch), Ch =\= "$" }, mstr(Rest).
 mstr([]) --> [], !.
@@ -85,10 +83,10 @@ underscore("_") --> "_".
 
 statement(Statement) --> sort_stmt(Statement)
     |  term_stmt(Statement)
-    |  assert_stmt(Statement)
-    |  def_stmt(Statement)
-    |  notation_stmt(Statement)
-    |  inout_stmt(Statement).
+    |  notation_stmt(Statement).
+    % |  assert_stmt(Statement)
+    % |  def_stmt(Statement)
+    % |  inout_stmt(Statement).
 
 
 % sort-stmt ::= ('pure')? ('strict')? ('provable')? ('free')? 'sort' identifier ';'
@@ -102,6 +100,65 @@ opts([    free|Rest]) --> [ident(free)], opts(Rest).
 opts([]) --> [], !.
 
 
+% term-stmt ::= 'term' identifier (type-binder)* ':' arrow-type ';'
+% identifier_ ::= identifier | '_'
+% type ::= identifier (identifier)*
+% type-binder ::= '{' (identifier)* ':' type '}'
+%              |  '(' (identifier_)* ':' type ')'
+% arrow-type ::= type | type '>' arrow-type
+
+term_stmt(term(Name, TypeBinder, ArrowType)) -->
+    [ident(term), ident(Name)],
+    type_binder(TypeBinder),
+    [symbol(:)],
+    arrow_type(ArrowType),
+    [symbol(;)].
+
+
+% identifier_(ID) --> identifier(ID).
+
+% type ::= identifier (identifier)*
+type([T|Ts]) --> [ident(T)], type(Ts).
+type([T]   ) --> [ident(T)], !.
+
+identity(ID) --> [ident(ID)].
+
+% type-binder ::= '{' (identifier )* ':' type '}'
+%              |  '(' (identifier_)* ':' type ')'
+type_binder(type(Names, Type)) --> [symbol('{')], z(identity, Names), [symbol(:)], type(Type), [symbol('}')].
+type_binder(type(Names, Type)) --> [symbol('(')], z(identity, Names), [symbol(:)], type(Type), [symbol(')')].
+
+% arrow-type ::= type | type '>' arrow-type
+arrow_type(T)      --> type(T).
+arrow_type(T > AT) --> type(T), [symbol(>)], arrow_type(AT).
+
+
+
+
+
+
+notation_stmt(Statement) --> delimiter_stmt(Statement).
+                %    |  simple_notation_stmt
+                %    |  coercion_stmt
+                %    |  gen_notation_stmt
+
+
+delimiter_stmt(delimiter(Delimiter)) --> [ident(delimiter), mstr(Delimiter), symbol(;)].
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 % Try it out...
 
 mm0_filename("../examples/hello.mm0").
@@ -109,5 +166,11 @@ mm0_filename("../examples/hello.mm0").
 do(MM0, R) :-
     mm0_filename(FN),
     read_file_to_codes(FN, Codes, []),
-    phrase(lex(MM0), Codes, Rest),
-    atom_codes(R, Rest).
+    phrase(lex(Tokens), Codes),
+    phrase(mm0_file(MM0), Tokens, R).
+
+
+% zero_or_more aka  foo*
+
+z(F, [Term|List])  --> call(F, Term), z(F, List).
+z(_, [])  --> [], !.
