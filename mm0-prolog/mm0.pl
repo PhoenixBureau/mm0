@@ -11,6 +11,14 @@ lex([])         --> [], !.
 
 % lexeme ::= symbol | identifier | number | math-string
 
+% identifier([Ch|Rest]) --> [a-zA-Z_][a-zA-Z0-9_]*
+lexeme(ident(ID)) --> identifier(Codes), { atom_codes(ID, Codes) }.
+
+% try identifier//3 first, to parse e.g.:
+% def __: string = $ s1 (ch x2 x0) $; -- space
+% where the ident is '__' whoch otherwise gets lexed as
+% ident(def), symbol('_'), symbol('_'), symbol(:), ...
+
 lexeme(symbol('*')) --> "*".
 lexeme(symbol('.')) --> ".".
 lexeme(symbol(':')) --> ":".
@@ -22,9 +30,6 @@ lexeme(symbol('{')) --> "{".
 lexeme(symbol('}')) --> "}".
 lexeme(symbol('=')) --> "=".
 lexeme(symbol('_')) --> "_".
-
-% identifier([Ch|Rest]) --> [a-zA-Z_][a-zA-Z0-9_]*
-lexeme(ident(ID)) --> identifier(Codes), { atom_codes(ID, Codes) }.
 
 % number ::= 0 | [1-9][0-9]*
 lexeme(number(0)) --> "0".
@@ -75,7 +80,7 @@ digit_non_zero(Ch) --> [Ch], { nonvar(Ch), between(0'1, 0'9, Ch) }.
 
 alpha(Ch) --> [Ch], { nonvar(Ch), (between(0'a, 0'z, Ch) | between(0'A, 0'Z, Ch))}.
 
-underscore("_") --> "_".
+underscore(0'_) --> "_".
 
 
 
@@ -83,9 +88,9 @@ underscore("_") --> "_".
 
 statement(Statement) --> sort_stmt(Statement)
     |  term_stmt(Statement)
-    |  notation_stmt(Statement).
+    |  notation_stmt(Statement)
+    |  def_stmt(Statement).
     % |  assert_stmt(Statement)
-    % |  def_stmt(Statement)
     % |  inout_stmt(Statement).
 
 
@@ -115,18 +120,18 @@ term_stmt(term(Name, TypeBinders, ArrowType)) -->
     [symbol(;)].
 
 
-% identifier_(ID) --> identifier(ID).
+ident(ID) --> [ident(ID)].
+
+ident_(ID) --> ident(ID) | [symbol(_)], { ID='_' }.
 
 % type ::= identifier (identifier)*
 type([T|Ts]) --> [ident(T)], type(Ts).
 type([T]   ) --> [ident(T)], !.
 
-identity(ID) --> [ident(ID)].
-
 % type-binder ::= '{' (identifier )* ':' type '}'
 %              |  '(' (identifier_)* ':' type ')'
-type_binder(type(Names, Type)) --> [symbol('{')], z(identity, Names), [symbol(:)], type(Type), [symbol('}')].
-type_binder(type(Names, Type)) --> [symbol('(')], z(identity, Names), [symbol(:)], type(Type), [symbol(')')].
+type_binder(type(Names, Type)) --> [symbol('{')], z(ident,  Names), [symbol(:)], type(Type), [symbol('}')].
+type_binder(type(Names, Type)) --> [symbol('(')], z(ident_, Names), [symbol(:)], type(Type), [symbol(')')].
 
 % arrow-type ::= type | type '>' arrow-type
 arrow_type(T)      --> type(T).
@@ -181,9 +186,27 @@ precedence_lvl(max) --> [ident(max)].
 
 
 
+% def-stmt ::= 'def' identifier (dummy-binder)* ':' type ('=' formula)? ';'
 
+def_stmt(def(Name, Bs, T, F)) -->
+    [ident(def), ident(Name)],
+    z(dummy_binder, Bs),
+    [symbol(:)],
+    type(T),
+    ([symbol(=)], formula(F) | [], { F=nil }),
+    [symbol(;)].
 
+% dummy-binder ::= '{' (dummy-identifier)* ':' type '}'
+%               |  '(' (dummy-identifier)* ':' type ')'
 
+% dummy-identifier ::= '.' identifier | identifier_
+
+dummy_binder(type(Names, Type)) --> [symbol('{')], z(dummy_identifier, Names), [symbol(:)], type(Type), [symbol('}')].
+dummy_binder(type(Names, Type)) --> [symbol('(')], z(dummy_identifier, Names), [symbol(:)], type(Type), [symbol(')')].
+
+dummy_identifier(ID) --> [symbol(.), ident(ID)] | ident_(ID).
+
+formula(F) --> [mstr(F)].
 
 
 
