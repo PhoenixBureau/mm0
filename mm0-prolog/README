@@ -1,66 +1,47 @@
-So far so good, we can parse examples\hello.mm0 into a list of tagged
-tokens kind of a thing.
-
-
+So far so good, we can parse examples\hello.mm0 into a list of statement
+thingies.
 
 Welcome to SWI-Prolog (threaded, 64 bits, version 8.1.4-33-gf5970a6e0)
 SWI-Prolog comes with ABSOLUTELY NO WARRANTY. This is free software.
 Please run ?- license. for legal details.
 
-For online help and background, visit http://www.swi-prolog.org
-For built-in help, use ?- help(Topic). or ?- apropos(Word).
 
-1 ?- do(MM0, Rest), portray_clause(MM0).
-[
-    ident(delimiter), mstr(' ( ) '), symbol(;),
-    ident(strict), ident(free), ident(sort), ident(hex), symbol(;),
-    ident(term), ident(x0), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(x1), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(x2), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(x3), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(x4), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(x5), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(x6), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(x7), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(x8), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(x9), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(xa), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(xb), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(xc), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(xd), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(xe), symbol(:), ident(hex), symbol(;),
-    ident(term), ident(xf), symbol(:), ident(hex), symbol(;),
-    ident(strict), ident(free), ident(sort), ident(char), symbol(;),
-    ident(term), ident(ch), symbol(:), ident(hex), symbol(>), ident(hex), symbol(>), ident(char), symbol(;),
-    ident(strict), ident(free), ident(sort), ident(string), symbol(;),
-    ident(term), ident(s0), symbol(:), ident(string), symbol(;),
-    ident(term), ident(s1), symbol(:), ident(char), symbol(>), ident(string), symbol(;),
-    ident(term), ident(sadd), symbol(:), ident(string), symbol(>), ident(string), symbol(>), ident(string), symbol(;), ident(infixr), ident(sadd), symbol(:), mstr(+), ident(prec), number(50), symbol(;), ident(def), ident(nl), symbol(:), ident(string), symbol(=), mstr(' s1 (ch x0 xa) '), symbol(;), ident(def), symbol('_'), symbol('_'), symbol(:), ident(string), symbol(=), mstr(' s1 (ch x2 x0) '), symbol(;), ident(def), ident(bang), symbol(:), ident(string), symbol(=), mstr(' s1 (ch x2 x1) '), symbol(;), ident(prefix), ident(bang), symbol(:), mstr('_!'), ident(prec), ident(max), symbol(;), ident(def), symbol('_'), ident('H'), symbol(:), ident(string), symbol(=), mstr(' s1 (ch x4 x8) '), symbol(;), ident(def), symbol('_'), ident('W'), symbol(:), ident(string), symbol(=), mstr(' s1 (ch x5 x7) '), symbol(;), ident(def), symbol('_'), ident(d), symbol(:), ident(string), symbol(=), mstr(' s1 (ch x6 x4) '), symbol(;), ident(def), symbol('_'), ident(e), symbol(:), ident(string), symbol(=), mstr(' s1 (ch x6 x5) '), symbol(;), ident(def), symbol('_'), ident(l), symbol(:), ident(string), symbol(=), mstr(' s1 (ch x6 xc) '), symbol(;), ident(def), symbol('_'), ident(o), symbol(:), ident(string), symbol(=), mstr(' s1 (ch x6 xf) '), symbol(;), ident(def), symbol('_'), ident(r), symbol(:), ident(string), symbol(=), mstr(' s1 (ch x7 x2) '), symbol(;), ident(output), ident(string), symbol(:), mstr(' _H + _e + _l + _l + _o + __ +\n                 _W + _o + _r + _l + _d + _! + nl '), symbol(;)].
-MM0 = [ident(delimiter), mstr(' ( ) '), symbol(";"), ident(strict), ident(free), ident(sort), ident(hex), symbol(";"), ident(...)|...],
-Rest = '' .
-
-
-=====================================================================
-
-?-
-phrase(sort_stmt(sort(Name, Opts)), [ident(strict), ident(free), ident(sort), ident(hex), symbol(;)]).
-Name = hex,
-Opts = [strict, free] .
-
-
-
-=======================================================
-
-?- do(MM0, Rest).
-MM0 = [delimiter(' ( ) '), sort(hex, [strict, free])],
-Rest = [ident(term), ident(x0), symbol(:), ident(hex), symbol(;), ident(term), ident(x1), symbol(:), ident(...)|...] .
-
-
-
-=======================================================
-
-
-?- do(MM0, Rest), portray_clause(MM0).
-[delimiter(' ( ) '), sort(hex, [strict, free]), term(x0, [], [hex]), term(x1, [], [hex]), term(x2, [], [hex]), term(x3, [], [hex]), term(x4, [], [hex]), term(x5, [], [hex]), term(x6, [], [hex]), term(x7, [], [hex]), term(x8, [], [hex]), term(x9, [], [hex]), term(xa, [], [hex]), term(xb, [], [hex]), term(xc, [], [hex]), term(xd, [], [hex]), term(xe, [], [hex]), term(xf, [], [hex]), sort(char, [strict, free]), term(ch, [], [hex]>([hex]>[char])), sort(string, [strict, free]), term(s0, [], [string]), term(s1, [], [char]>[string]), term(sadd, [], [string]>([string]>[string])), infixr(sadd, +, 50), def(nl, [], [string], ' s1 (ch x0 xa) '), def('__', [], [string], ' s1 (ch x2 x0) '), def(bang, [], [string], ' s1 (ch x2 x1) '), prefix(bang, '_!', max), def('_H', [], [string], ' s1 (ch x4 x8) '), def('_W', [], [string], ' s1 (ch x5 x7) '), def('_d', [], [string], ' s1 (ch x6 x4) '), def('_e', [], [string], ' s1 (ch x6 x5) '), def('_l', [], [string], ' s1 (ch x6 xc) '), def('_o', [], [string], ' s1 (ch x6 xf) '), def('_r', [], [string], ' s1 (ch x7 x2) ')].
-MM0 = [delimiter(' ( ) '), sort(hex, [strict, free]), term(x0, [], [hex]), term(x1, [], [hex]), term(x2, [], [hex]), term(x3, [], [hex]), term(x4, [], [hex]), term(x5, [], [...]), term(..., ..., ...)|...],
-Rest = [ident(output), ident(string), symbol(:), mstr(' _H + _e + _l + _l + _o + __ +\n                 _W + _o + _r + _l + _d + _! + nl '), symbol(;)] .
+3 ?- do.
+delimiter(' ( ) ').
+sort(hex, [strict, free]).
+term(x0, [], [hex]).
+term(x1, [], [hex]).
+term(x2, [], [hex]).
+term(x3, [], [hex]).
+term(x4, [], [hex]).
+term(x5, [], [hex]).
+term(x6, [], [hex]).
+term(x7, [], [hex]).
+term(x8, [], [hex]).
+term(x9, [], [hex]).
+term(xa, [], [hex]).
+term(xb, [], [hex]).
+term(xc, [], [hex]).
+term(xd, [], [hex]).
+term(xe, [], [hex]).
+term(xf, [], [hex]).
+sort(char, [strict, free]).
+term(ch, [], [hex]>([hex]>[char])).
+sort(string, [strict, free]).
+term(s0, [], [string]).
+term(s1, [], [char]>[string]).
+term(sadd, [], [string]>([string]>[string])).
+infixr(sadd, +, 50).
+def(nl, [], [string], ' s1 (ch x0 xa) ').
+def('__', [], [string], ' s1 (ch x2 x0) ').
+def(bang, [], [string], ' s1 (ch x2 x1) ').
+prefix(bang, '_!', max).
+def('_H', [], [string], ' s1 (ch x4 x8) ').
+def('_W', [], [string], ' s1 (ch x5 x7) ').
+def('_d', [], [string], ' s1 (ch x6 x4) ').
+def('_e', [], [string], ' s1 (ch x6 x5) ').
+def('_l', [], [string], ' s1 (ch x6 xc) ').
+def('_o', [], [string], ' s1 (ch x6 xf) ').
+def('_r', [], [string], ' s1 (ch x7 x2) ').
+output(string, [mstr(' _H + _e + _l + _l + _o + __ +\n                 _W + _o + _r + _l + _d + _! + nl ')]).
+true.

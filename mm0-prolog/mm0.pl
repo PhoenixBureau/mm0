@@ -89,9 +89,9 @@ underscore(0'_) --> "_".
 statement(Statement) --> sort_stmt(Statement)
     |  term_stmt(Statement)
     |  notation_stmt(Statement)
-    |  def_stmt(Statement).
+    |  def_stmt(Statement)
+    |  inout_stmt(Statement).
     % |  assert_stmt(Statement)
-    % |  inout_stmt(Statement).
 
 
 % sort-stmt ::= ('pure')? ('strict')? ('provable')? ('free')? 'sort' identifier ';'
@@ -211,15 +211,34 @@ formula(F) --> [mstr(F)].
 
 
 
+% inout-stmt ::= input-stmt | output-stmt
+% input-stmt ::= 'input' input-kind ':' (identifier | math-string)* ';'
+% output-stmt ::= 'output' output-kind ':' (identifier | math-string)* ';'
+% input-kind ::= identifier
+% output-kind ::= identifier
+
+
+inout_stmt(Statement) --> input_stmt(Statement) | output_stmt(Statement).
+
+input_stmt(  input(Kind, Content)) --> [ ident(input), ident(Kind), symbol(:)], z(io_content, Content), [symbol(;)].
+output_stmt(output(Kind, Content)) --> [ident(output), ident(Kind), symbol(:)], z(io_content, Content), [symbol(;)].
+
+io_content(ident(Bar)) --> [ident(Bar)], !.
+io_content( mstr(Bar)) --> [mstr(Bar)].
+
+
+
 % Try it out...
 
 mm0_filename("../examples/hello.mm0").
 
-do(MM0, R) :-
+do :-
     mm0_filename(FN),
     read_file_to_codes(FN, Codes, []),
     phrase(lex(Tokens), Codes),
-    phrase(mm0_file(MM0), Tokens, R).
+    phrase(mm0_file(MM0), Tokens),
+    maplist(portray_clause, MM0),
+    !.
 
 
 % zero_or_more aka  foo*
