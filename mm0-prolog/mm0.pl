@@ -134,11 +134,27 @@ arrow_type(T > AT) --> type(T), [symbol(>)], arrow_type(AT).
 
 
 
+    % notation-stmt ::= delimiter-stmt
+    % |  simple-notation-stmt
+    % |  coercion-stmt
+    % |  gen-notation-stmt
+    % delimiter-stmt ::= 'delimiter' math-string ';'
+    % simple-notation-stmt ::= ('infixl' | 'infixr' | 'prefix') identifier ':'
+    % constant 'prec' precedence-lvl ';'
+    % constant ::= math-string
+    % precedence-lvl ::= number | 'max'
+    % coercion-stmt ::= 'coercion' identifier ':' identifier '>' identifier ';'
+    % gen-notation-stmt ::= 'notation' identifier (type-binder)* ':'
+    % type '=' prec-constant (notation-literal)* ';'
+    % notation-literal ::= prec-constant | identifier
+    % prec-constant ::= '(' constant ':' precedence-lvl ')'
 
 
 
-notation_stmt(Statement) --> delimiter_stmt(Statement).
-                %    |  simple_notation_stmt
+
+
+notation_stmt(Statement) --> delimiter_stmt(Statement)
+    |  simple_notation_stmt(Statement).
                 %    |  coercion_stmt
                 %    |  gen_notation_stmt
 
@@ -146,6 +162,19 @@ notation_stmt(Statement) --> delimiter_stmt(Statement).
 delimiter_stmt(delimiter(Delimiter)) --> [ident(delimiter), mstr(Delimiter), symbol(;)].
 
 
+% simple-notation-stmt ::= ('infixl' | 'infixr' | 'prefix') identifier ':' constant 'prec' precedence-lvl ';'
+
+    % constant ::= math-string
+    % precedence-lvl ::= number | 'max'
+
+simple_notation_stmt(infixl(Name, N, P)) --> [ident(infixl), ident(Name), symbol(:)], constant(N), [ident(prec)], precedence_lvl(P), [symbol(;)].
+simple_notation_stmt(infixr(Name, N, P)) --> [ident(infixr), ident(Name), symbol(:)], constant(N), [ident(prec)], precedence_lvl(P), [symbol(;)].
+simple_notation_stmt(prefix(Name, N, P)) --> [ident(prefix), ident(Name), symbol(:)], constant(N), [ident(prec)], precedence_lvl(P), [symbol(;)].
+
+constant(N) --> [mstr(N)].
+
+precedence_lvl(P) --> [number(P)], !.
+precedence_lvl(max) --> [ident(max)].
 
 
 
