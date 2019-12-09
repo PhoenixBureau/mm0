@@ -11,14 +11,6 @@ lex([])         --> [], !.
 
 % lexeme ::= symbol | identifier | number | math-string
 
-% identifier([Ch|Rest]) --> [a-zA-Z_][a-zA-Z0-9_]*
-lexeme(ident(ID)) --> identifier(Codes), { atom_codes(ID, Codes) }.
-
-% try identifier//3 first, to parse e.g.:
-% def __: string = $ s1 (ch x2 x0) $; -- space
-% where the ident is '__' whoch otherwise gets lexed as
-% ident(def), symbol('_'), symbol('_'), symbol(:), ...
-
 lexeme(symbol('*')) --> "*".
 lexeme(symbol('.')) --> ".".
 lexeme(symbol(':')) --> ":".
@@ -29,7 +21,11 @@ lexeme(symbol('>')) --> ">".
 lexeme(symbol('{')) --> "{".
 lexeme(symbol('}')) --> "}".
 lexeme(symbol('=')) --> "=".
-lexeme(symbol('_')) --> "_".
+lexeme(symbol('_')) --> "_", \+ ident_char(_).
+% Underscore followed by ident char is part of ident.
+
+% identifier([Ch|Rest]) --> [a-zA-Z_][a-zA-Z0-9_]*
+lexeme(ident(ID)) --> identifier(Codes), { atom_codes(ID, Codes) }.
 
 % number ::= 0 | [1-9][0-9]*
 lexeme(number(0)) --> "0".
@@ -43,8 +39,10 @@ lexeme(mstr(MathStr)) --> "$", mstr(Codes), "$", { atom_codes(MathStr, Codes) }.
 
 identifier([Ch|Rest]) --> (alpha(Ch) | underscore(Ch)), ident_chars(Rest).
 
-ident_chars([Ch|Rest]) --> (alpha(Ch) | underscore(Ch) | digit(Ch)), ident_chars(Rest).
+ident_chars([Ch|Rest]) --> ident_char(Ch), ident_chars(Rest).
 ident_chars([]) --> [], !.
+
+ident_char(Ch) --> alpha(Ch) | underscore(Ch) | digit(Ch).
 
 number([Ch|Rest]) --> digit_non_zero(Ch), digits(Rest).
 
@@ -231,11 +229,13 @@ io_content( mstr(Bar)) --> [mstr(Bar)].
 % Try it out...
 
 mm0_filename("../examples/hello.mm0").
+% mm0_filename("debuggy.mm0").
 
 do :-
     mm0_filename(FN),
     read_file_to_codes(FN, Codes, []),
     phrase(lex(Tokens), Codes),
+    % portray_clause(Tokens),
     phrase(mm0_file(MM0), Tokens),
     maplist(portray_clause, MM0),
     !.

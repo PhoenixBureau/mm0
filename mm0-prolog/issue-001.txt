@@ -1,0 +1,22 @@
+I'm writing a verifier in Prolog and I noticed that the underscore is a
+little tricky to lex.  E.g. in this def in the hello world mm0 file:
+
+    def __: string = $ s1 (ch x2 x0) $; -- space
+
+If I parse identifiers before symbols the identifier '__' works:
+
+    [ident(def), ident('__'), symbol(:), ident(string), symbol(=), mstr(' s1 (ch x2 x0) '), symbol(;)].
+
+But if I parse symbols before identifiers it lexes as a pair of symbols,
+then a symbol and an ident, and only then does it find the correct parse
+(when the next stage after the lexxer has rejected the first two, and a
+lot of other otherwise-correct parses.)
+
+    [ident(def), symbol('_'), symbol('_'), symbol(:), ident(string), symbol(=), mstr(' s1 (ch x2 x0) '), symbol(;)].
+    [ident(def), symbol('_'), ident('_'),  symbol(:), ident(string), symbol(=), mstr(' s1 (ch x2 x0) '), symbol(;)].
+    [ident(def), ident('__'),              symbol(:), ident(string), symbol(=), mstr(' s1 (ch x2 x0) '), symbol(;)].
+
+One way to deal with this (if I wanted to make the order of lexeme
+sub-rule irrelevant, as it should be) might be to make the symbol(_) rule
+reject the parse if the underscore is followed by an identifier
+character.
