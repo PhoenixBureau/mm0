@@ -39,11 +39,7 @@ lexeme(mstr(MathStr)) --> "$", mstr(Codes), "$", { atom_codes(MathStr, Codes) }.
 
 identifier([Ch|Rest]) --> (alpha(Ch) | underscore(Ch)), z(ident_char, Rest).
 
-ident_char(Ch) --> alpha(Ch) | underscore(Ch) | digit(Ch).
-
-number([Ch|Rest]) --> digit_non_zero(Ch), digits(Rest).
-
-digits(Digits) --> z(digit, Digits).
+number([InitialDigit|Digits]) --> digit_non_zero(InitialDigit), z(digit, Digits).
 
 mstr([Ch|Rest]) --> [Ch], { nonvar(Ch), Ch =\= "$" }, mstr(Rest).
 mstr([]) --> [], !.
@@ -77,6 +73,7 @@ alpha(Ch) --> [Ch], { nonvar(Ch), (between(0'a, 0'z, Ch) | between(0'A, 0'Z, Ch)
 
 underscore(0'_) --> "_".
 
+ident_char(Ch) --> alpha(Ch) | underscore(Ch) | digit(Ch).
 
 
 % Parser (or wahtever)
@@ -167,16 +164,15 @@ delimiter_stmt(delimiter(Delimiter)) --> [ident(delimiter), mstr(Delimiter), sym
     % constant ::= math-string
     % precedence-lvl ::= number | 'max'
 
-simple_notation_stmt(infixl(Name, N, P)) --> [ident(infixl), ident(Name), symbol(:)], constant(N), [ident(prec)], precedence_lvl(P), [symbol(;)].
-simple_notation_stmt(infixr(Name, N, P)) --> [ident(infixr), ident(Name), symbol(:)], constant(N), [ident(prec)], precedence_lvl(P), [symbol(;)].
-simple_notation_stmt(prefix(Name, N, P)) --> [ident(prefix), ident(Name), symbol(:)], constant(N), [ident(prec)], precedence_lvl(P), [symbol(;)].
+simple_notation_stmt(infixl(Name, N, P)) --> [ident(infixl)], !, simple_notation_stmt(Name, N, P).
+simple_notation_stmt(infixr(Name, N, P)) --> [ident(infixr)], !, simple_notation_stmt(Name, N, P).
+simple_notation_stmt(prefix(Name, N, P)) --> [ident(prefix)],    simple_notation_stmt(Name, N, P).
 
-constant(N) --> [mstr(N)].
+simple_notation_stmt(Name, Const, P) -->
+    [ident(Name), symbol(:), mstr(Const), ident(prec)], precedence_lvl(P), [symbol(;)].
 
 precedence_lvl(P) --> [number(P)], !.
 precedence_lvl(max) --> [ident(max)].
-
-
 
 
 
@@ -196,8 +192,10 @@ def_stmt(def(Name, Bs, T, F)) -->
 
 % dummy-identifier ::= '.' identifier | identifier_
 
-dummy_binder(type(Names, Type)) --> [symbol('{')], !, z(dummy_identifier, Names), [symbol(:)], type(Type), [symbol('}')].
-dummy_binder(type(Names, Type)) --> [symbol('(')],    z(dummy_identifier, Names), [symbol(:)], type(Type), [symbol(')')].
+dummy_binder(type(Names, Type)) --> [symbol('{')], !, dummy_binder(Names, Type), [symbol('}')].
+dummy_binder(type(Names, Type)) --> [symbol('(')],    dummy_binder(Names, Type), [symbol(')')].
+
+dummy_binder(Names, Type) --> z(dummy_identifier, Names), [symbol(:)], type(Type).
 
 dummy_identifier(ID) --> [symbol(.), ident(ID)] | ident_(ID).
 
