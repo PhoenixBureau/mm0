@@ -1,0 +1,18 @@
+So far so good, we can parse examples\hello.mm0 into a list of tagged
+tokens kind of a thing.
+
+
+
+Welcome to SWI-Prolog (threaded, 64 bits, version 8.1.4-33-gf5970a6e0)
+SWI-Prolog comes with ABSOLUTELY NO WARRANTY. This is free software.
+Please run ?- license. for legal details.
+
+For online help and background, visit http://www.swi-prolog.org
+For built-in help, use ?- help(Topic). or ?- apropos(Word).
+
+1 ?- do(MM0, Rest), portray_clause(MM0).
+[ident(delimiter), mstr(' ( ) '), symbol(";"), ident(strict), ident(free), ident(sort), ident(hex), symbol(";"), ident(term), ident(x0), symbol(":"), ident(hex), symbol(";"), ident(term), ident(x1), symbol(":"), ident(hex), symbol(";"), ident(term), ident(x2), symbol(":"), ident(hex), symbol(";"), ident(term), ident(x3), symbol(":"), ident(hex), symbol(";"), ident(term), ident(x4), symbol(":"), ident(hex), symbol(";"), ident(term), ident(x5), symbol(":"), ident(hex), symbol(";"), ident(term), ident(x6), symbol(":"), ident(hex), symbol(";"), ident(term), ident(x7), symbol(":"), ident(hex), symbol(";"), ident(term), ident(x8), symbol(":"), ident(hex), symbol(";"), ident(term),
+ident(x9), symbol(":"), ident(hex), symbol(";"), ident(term), ident(xa), symbol(":"), ident(hex), symbol(";"), ident(term), ident(xb), symbol(":"), ident(hex), symbol(";"), ident(term), ident(xc), symbol(":"), ident(hex), symbol(";"), ident(term), ident(xd), symbol(":"), ident(hex), symbol(";"), ident(term), ident(xe), symbol(":"), ident(hex), symbol(";"), ident(term), ident(xf), symbol(":"), ident(hex), symbol(";"), ident(strict), ident(free), ident(sort), ident(char), symbol(";"), ident(term), ident(ch), symbol(":"), ident(hex), symbol(">"), ident(hex), symbol(">"), ident(char), symbol(";"), ident(strict), ident(free), ident(sort), ident(string), symbol(";"), ident(term), ident(s0), symbol(":"), ident(string), symbol(";"), ident(term), ident(s1), symbol(":"), ident(char), symbol(">"), ident(string), symbol(";"), ident(term), ident(sadd), symbol(":"), ident(string), symbol(">"), ident(string), symbol(">"), ident(string), symbol(";"), ident(infixr), ident(sadd), symbol(":"), mstr(+), ident(prec), number(50), symbol(";"), ident(def), ident(nl), symbol(":"), ident(string), symbol("="), mstr(' s1 (ch x0 xa) '), symbol(";"), ident(def), symbol("_"), symbol("_"), symbol(":"), ident(string), symbol("="), mstr(' s1 (ch x2 x0) '), symbol(";"), ident(def), ident(bang), symbol(":"), ident(string), symbol("="), mstr(' s1 (ch x2 x1) '), symbol(";"), ident(prefix), ident(bang), symbol(":"), mstr('_!'), ident(prec), ident(max), symbol(";"), ident(def), symbol("_"), ident('H'), symbol(":"), ident(string), symbol("="), mstr(' s1
+(ch x4 x8) '), symbol(";"), ident(def), symbol("_"), ident('W'), symbol(":"), ident(string), symbol("="), mstr(' s1 (ch x5 x7) '), symbol(";"), ident(def), symbol("_"), ident(d), symbol(":"), ident(string), symbol("="), mstr(' s1 (ch x6 x4) '), symbol(";"), ident(def), symbol("_"), ident(e), symbol(":"), ident(string), symbol("="), mstr(' s1 (ch x6 x5) '), symbol(";"), ident(def), symbol("_"), ident(l), symbol(":"), ident(string), symbol("="), mstr(' s1 (ch x6 xc) '), symbol(";"), ident(def), symbol("_"), ident(o), symbol(":"), ident(string), symbol("="), mstr(' s1 (ch x6 xf) '), symbol(";"), ident(def), symbol("_"), ident(r), symbol(":"), ident(string), symbol("="), mstr(' s1 (ch x7 x2) '), symbol(";"), ident(output), ident(string), symbol(":"), mstr(' _H + _e + _l + _l + _o + __ +\n                 _W + _o + _r + _l + _d + _! + nl '), symbol(";")].
+MM0 = [ident(delimiter), mstr(' ( ) '), symbol(";"), ident(strict), ident(free), ident(sort), ident(hex), symbol(";"), ident(...)|...],
+Rest = '' .
