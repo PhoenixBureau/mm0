@@ -7,7 +7,7 @@ mm0_file(Statements) --> z(statement, Statements).
 
 lex([LEX|Rest]) --> lexeme(LEX), lex(Rest).
 lex(     Rest ) --> whitespace,  lex(Rest).
-lex([])         --> [], !.
+lex([])         --> [].
 
 % lexeme ::= symbol | identifier | number | math-string
 
@@ -22,13 +22,13 @@ lexeme(symbol('{')) --> "{".
 lexeme(symbol('}')) --> "}".
 lexeme(symbol('=')) --> "=".
 lexeme(symbol('_')) --> "_", \+ ident_char(_).
-% Underscore followed by ident char is part of ident.
+% Underscore followed by ident char is part of ident, not a symbol.
 
 % identifier([Ch|Rest]) --> [a-zA-Z_][a-zA-Z0-9_]*
 lexeme(ident(ID)) --> identifier(Codes), { atom_codes(ID, Codes) }.
 
 % number ::= 0 | [1-9][0-9]*
-lexeme(number(0)) --> "0".
+lexeme(number(0)) --> "0", !.
 lexeme(number(N)) --> number(Codes), { number_codes(N, Codes) }.
 
 % math-string ::= '$' [^\$]* '$'
@@ -37,10 +37,7 @@ lexeme(mstr(MathStr)) --> "$", mstr(Codes), "$", { atom_codes(MathStr, Codes) }.
 
 % Character patterns.
 
-identifier([Ch|Rest]) --> (alpha(Ch) | underscore(Ch)), ident_chars(Rest).
-
-ident_chars([Ch|Rest]) --> ident_char(Ch), ident_chars(Rest).
-ident_chars([]) --> [], !.
+identifier([Ch|Rest]) --> (alpha(Ch) | underscore(Ch)), z(ident_char, Rest).
 
 ident_char(Ch) --> alpha(Ch) | underscore(Ch) | digit(Ch).
 
@@ -58,7 +55,7 @@ mstr([]) --> [], !.
 % line-comment ::= '--' [^\n]* '\n'
 
 whitespace --> whitestuff, whitespace.
-whitespace --> whitestuff, !.
+whitespace --> whitestuff.
 
 whitestuff --> whitechar | line_comment.
 
@@ -67,7 +64,7 @@ whitechar --> " " | "\n".
 line_comment --> "--", non_newlines, "\n".
 
 non_newlines --> [Ch], { nonvar(Ch), Ch =\= "\n" }, non_newlines.
-non_newlines --> [], !.
+non_newlines --> [].
 % Compare with mstr//3.
 
 
@@ -96,11 +93,11 @@ statement(Statement) --> sort_stmt(Statement)
 
 sort_stmt(sort(Name, Opts)) --> opts(Opts), [ident(sort), ident(Name), symbol(;)].
 
-opts([    pure|Rest]) --> [ident(pure)], opts(Rest).
-opts([  strict|Rest]) --> [ident(strict)], opts(Rest).
+opts([    pure|Rest]) --> [ident(pure)    ], opts(Rest).
+opts([  strict|Rest]) --> [ident(strict)  ], opts(Rest).
 opts([provable|Rest]) --> [ident(provable)], opts(Rest).
-opts([    free|Rest]) --> [ident(free)], opts(Rest).
-opts([]) --> [], !.
+opts([    free|Rest]) --> [ident(free)    ], opts(Rest).
+opts([]) --> [].
 
 
 % term-stmt ::= 'term' identifier (type-binder)* ':' arrow-type ';'
@@ -124,12 +121,12 @@ ident_(ID) --> ident(ID) | [symbol(_)], { ID='_' }.
 
 % type ::= identifier (identifier)*
 type([T|Ts]) --> [ident(T)], type(Ts).
-type([T]   ) --> [ident(T)], !.
+type([T]   ) --> [ident(T)].
 
 % type-binder ::= '{' (identifier )* ':' type '}'
 %              |  '(' (identifier_)* ':' type ')'
-type_binder(type(Names, Type)) --> [symbol('{')], z(ident,  Names), [symbol(:)], type(Type), [symbol('}')].
-type_binder(type(Names, Type)) --> [symbol('(')], z(ident_, Names), [symbol(:)], type(Type), [symbol(')')].
+type_binder(type(Names, Type)) --> [symbol('{')], !, z(ident,  Names), [symbol(:)], type(Type), [symbol('}')].
+type_binder(type(Names, Type)) --> [symbol('(')],    z(ident_, Names), [symbol(:)], type(Type), [symbol(')')].
 
 % arrow-type ::= type | type '>' arrow-type
 arrow_type(T)      --> type(T).
@@ -199,8 +196,8 @@ def_stmt(def(Name, Bs, T, F)) -->
 
 % dummy-identifier ::= '.' identifier | identifier_
 
-dummy_binder(type(Names, Type)) --> [symbol('{')], z(dummy_identifier, Names), [symbol(:)], type(Type), [symbol('}')].
-dummy_binder(type(Names, Type)) --> [symbol('(')], z(dummy_identifier, Names), [symbol(:)], type(Type), [symbol(')')].
+dummy_binder(type(Names, Type)) --> [symbol('{')], !, z(dummy_identifier, Names), [symbol(:)], type(Type), [symbol('}')].
+dummy_binder(type(Names, Type)) --> [symbol('(')],    z(dummy_identifier, Names), [symbol(:)], type(Type), [symbol(')')].
 
 dummy_identifier(ID) --> [symbol(.), ident(ID)] | ident_(ID).
 
