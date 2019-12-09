@@ -107,9 +107,9 @@ opts([]) --> [], !.
 %              |  '(' (identifier_)* ':' type ')'
 % arrow-type ::= type | type '>' arrow-type
 
-term_stmt(term(Name, TypeBinder, ArrowType)) -->
+term_stmt(term(Name, TypeBinders, ArrowType)) -->
     [ident(term), ident(Name)],
-    type_binder(TypeBinder),
+    z(type_binder,TypeBinders),
     [symbol(:)],
     arrow_type(ArrowType),
     [symbol(;)].
