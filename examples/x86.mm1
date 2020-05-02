@@ -113,7 +113,7 @@ pub theorem sExtT (m n v: nat): $ m <= n /\ v e. Bits m -> sExt m n v e. Bits n 
     sylib ltadd2 @ sylib elupto anlr)
   (mpbird (eleq1d @ anwr ifneg) @ anwl @ imp Bitsle));
 
-do {(set-reporting 'warn #f)};
+do (set-reporting 'warn #f);
 pub theorem sExtqT (n v: nat): $ n <= 64 /\ v e. Bits n -> sExtq n v e. u64 $;
 
 -- get lower bits of a number
@@ -218,15 +218,15 @@ pub theorem readDisplacementT (mod q l: nat):
   $ readDisplacement mod q l ->
     mod e. Bits 2 /\ mod != 3 /\ q e. u64 /\ l e. List u8 $;
 
-@_ def readSIBDisplacement (mod bbase q base l .b: nat): wff =
+@_ def readSIBDisplacement (mod bbase q base l .w: nat): wff =
 $ ifp (bbase = RBP /\ mod = 0)
-    (E. b (b e. u8 /\ q = sExtq 8 b /\ base = 0 /\ l = b : 0))
+    (E. w (w e. u32 /\ q = sExtq 32 w /\ base = 0 /\ l = u32Bytes w))
     (readDisplacement mod q l /\ base = base_reg bbase) $;
 pub theorem readSIBDisplacementT (mod bbase q base l: nat):
   $ bbase e. Regs /\ readSIBDisplacement mod bbase q base l ->
     mod e. Bits 2 /\ mod != 3 /\ q e. u64 /\ base e. Base /\ l e. List u8 $;
 
-@_ def readSIB (rex mod rm l .b .bs .ix .sc .disp .bbase .index: nat): wff =
+@_ def readSIB (rex mod rm l .b .l2 .bs .ix .sc .disp .bbase .index: nat): wff =
 $ E. b E. l2 E. bs E. ix E. sc E. disp E. bbase E. index (
     splitBits ((3 <> bs) : (3 <> ix) : (2 <> sc) : 0) b /\
     index = rex_reg (REX_X rex) ix /\
@@ -287,7 +287,7 @@ pub theorem readFullImmT (sz q l: nat):
   $ sz e. WSize /\ readFullImm sz q l -> q e. u64 /\ l e. List u8 $;
 
 @_ def readImm (sz q l: nat): wff =
-$ readFullImm sz q l /\ wsizeBytes sz < 8 $;
+$ readImmN (min (wsizeBits sz) 32) q l $;
 pub theorem readImmT (sz q l: nat):
   $ sz e. WSize /\ readImm sz q l -> q e. u64 /\ l e. List u8 $;
 
@@ -347,8 +347,8 @@ pub theorem immRM_immT (i: nat): $ i e. RM -> immRM_imm i e. ImmRM $;
 
 @_ def Cond: set = $ Option (Bits 4) $;
 @_ def condAlways: nat = $ 0 $;
-@_ def condPos (c: nat): nat = $ suc c $;
-@_ def condNeg (c: nat): nat = $ suc (c + 8) $;
+@_ def condPos (c: nat): nat = $ suc (b0 c) $;
+@_ def condNeg (c: nat): nat = $ suc (b1 c) $;
 pub theorem condAlwaysT: $ condAlways e. Cond $;
 pub theorem condPosT (c: nat): $ c e. BCond -> condPos c e. Cond $;
 pub theorem condNegT (c: nat): $ c e. BCond -> condNeg c e. Cond $;
@@ -1157,12 +1157,12 @@ pub theorem stepT (k k2: nat): $ step k k2 -> k e. Config /\ k2 e. Config $;
 -- a system call (we model the x86-64 SYSCALL instruction instead of INT).
 -- Here k2 is the state that the kernel sees, with RCX and RIP set to
 -- the point after the call.
-@_ def isIO (k k2 .l .rip: nat): wff =
-$ k e. Config /\ E. l E. rip (
+@_ def isIO (k k2 .l .rip .r11: nat): wff =
+$ k e. Config /\ E. l E. rip E. r11 (
   readMemX k (readRIP k) l /\
   decode xastSysCall l /\
   rip = readRIP k +_64 len l /\
-  k2 = setReg (writeRIP k rip) RCX rip) $;
+  k2 = setReg (setReg (writeRIP k rip) RCX rip) 11 r11) $;
 
 ----------------------------------------
 -- IO semantics
@@ -1385,7 +1385,7 @@ $ E. f E. m (f e. Flags /\ m e. Memory /\
     k = entry <> lower ((\ r, 0) |` Regs) <> f <> m) $;
 pub theorem blankConfigT (entry k: nat):
   $ entry e. u64 /\ blankConfig entry k -> k e. Config $;
-do {(set-reporting #t)};
+do (set-reporting #t);
 
 @_ def allocStack (k k2 .sp .stack .argc .x .arg .cstr .str: nat): wff =
 $ E. sp E. stack E. argc (

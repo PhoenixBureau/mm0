@@ -199,9 +199,9 @@ declStmt = fmap toSpan <$> do
     x <- ident
     bis <- binders
     ret <- optional (symbol ":" *> sepBy1 ptype (symbol ">"))
-    let errs = maybe [] (checkRet dk) ret ++ checkBinders dk Nothing bis
     o <- getOffset
     val <- optional (symbol "=" *> lispVal)
+    let errs = maybe [] (checkRet dk) ret ++ checkBinders val dk Nothing bis
     let {errs' = case (val, ret, vis, dk) of
       (Just _, Just (_:_:_), _, _) ->
         (o, "Arrow type notation is not allowed with '='." <>
@@ -223,25 +223,29 @@ declStmt = fmap toSpan <$> do
     else Nothing <$ mapM_ (\(o', msg) -> failAt o' msg) errs'
   where
 
-  checkBinders :: DeclKind -> Maybe Offset -> [Binder] -> [(Offset, String)]
-  checkBinders _ _ [] = []
-  checkBinders dk _ (Binder (o, _) l (Just (TFormula _)) : bis) | isLCurly l =
+  checkBinders :: Maybe a -> DeclKind -> Maybe Offset -> [Binder] -> [(Offset, String)]
+  checkBinders _ _ _ [] = []
+  checkBinders val dk _ (Binder (o, _) l (Just (TFormula _)) : bis) | isLCurly l =
     (o, "Use regular binders for formula hypotheses") :
-    checkBinders dk (Just o) bis
-  checkBinders dk _ (Binder (o, _) _ (Just (TFormula _)) : bis) =
+    checkBinders val dk (Just o) bis
+  checkBinders val dk _ (Binder (o, _) _ (Just (TFormula _)) : bis) =
     if dk == DKTerm || dk == DKDef then
       [(o, "A term/def does not take formula hypotheses")] else [] ++
-    checkBinders dk (Just o) bis
-  checkBinders dk loff (Binder (o, _) _ Nothing : bis) =
+    checkBinders val dk (Just o) bis
+  checkBinders val dk loff (Binder (o, _) _ Nothing : bis) =
     if dk == DKTerm then [(o, "Cannot infer binder type")] else [] ++
-    checkBinders dk loff bis
-  checkBinders dk off (Binder (o2, _) l (Just (TType (AtDepType _ ts))) : bis) =
+    checkBinders val dk loff bis
+  checkBinders val dk off (Binder (o2, _) l (Just (TType (AtDepType _ ts))) : bis) =
     maybe [] (\o ->
       [(o, "Hypotheses must come after term variables"),
        (o2, "All term variables must come before all hypotheses")]) off ++
     if isLCurly l && not (null ts) then
-      [(o2, "Bound variable has dependent type")] else [] ++
-    checkBinders dk Nothing bis
+      [(o2, "Bound variable has dependent type")]
+    else if case l of LDummy _ -> isNothing val; _ -> False then
+      [(o2, "An axiom/theorem does not take dummy variables")]
+    else []
+      ++
+    checkBinders val dk Nothing bis
 
   checkRet :: DeclKind -> [Type] -> [(Offset, String)]
   checkRet _ [] = []
@@ -304,11 +308,13 @@ notation = delimNota <|> fixNota <|> coeNota <|> genNota where
 
   genNota :: Parser (Maybe (Notation, Offset))
   genNota = kw "notation" >> commit
-    (liftM5 NNotation getOffset ident binders
-      (optional (symbol ":" *> ptype))
+    (NNotation <$> getOffset <*> ident <*> binders <*>
+      (optional (symbol ":" *> ptype)) <*>
       (symbol "=" *> some (atPos $
         parens (liftA2 NConst constant (symbol ":" *> prec)) <|>
-        (NVar <$> ident))))
+        (NVar <$> ident))) <*>
+      (optional (symbol ":" *> ((,) <$> prec <*>
+        (False <$ kw "lassoc" <|> True <$ kw "rassoc")))))
 
 inout :: Parser (Maybe (Inout, Offset))
 inout = do
@@ -320,7 +326,8 @@ annot = mSpan (symbol "@" >>
   liftA2 (fmap . \v s@(Span o _) -> (Annot v s, snd o)) lispVal spanStmt)
 
 doStmt :: Parser (Maybe (Span Stmt))
-doStmt = mSpan (kw "do" >> commit (braces (Do <$> many lispVal)))
+doStmt = mSpan (kw "do" >> commit (Do <$>
+  (braces (many lispVal) <|> (\x -> [x]) <$> lispVal)))
 
 importStmt :: Parser (Maybe (Span Stmt))
 importStmt = mSpan (kw "import" >> commit (Import <$> lexeme (span strLit)))

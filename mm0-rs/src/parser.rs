@@ -3,6 +3,7 @@ pub mod ast;
 use std::mem;
 use std::sync::Arc;
 use lsp_types::{Diagnostic, DiagnosticSeverity};
+use annotate_snippets::snippet::AnnotationType;
 use num::BigUint;
 use num::cast::ToPrimitive;
 use crate::util::*;
@@ -10,16 +11,26 @@ use crate::lined_string::*;
 pub use ast::AST;
 use ast::*;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum ErrorLevel {
+  Info,
   Warning,
-  Error
+  Error,
 }
 impl ErrorLevel {
   pub fn to_diag_severity(self) -> DiagnosticSeverity {
     match self {
+      ErrorLevel::Info => DiagnosticSeverity::Information,
       ErrorLevel::Warning => DiagnosticSeverity::Warning,
       ErrorLevel::Error => DiagnosticSeverity::Error,
+    }
+  }
+
+  pub fn to_annotation_type(self) -> AnnotationType {
+    match self {
+      ErrorLevel::Info => AnnotationType::Info,
+      ErrorLevel::Warning => AnnotationType::Warning,
+      ErrorLevel::Error => AnnotationType::Error,
     }
   }
 }
@@ -30,6 +41,13 @@ pub struct ParseError {
   pub msg: BoxError,
 }
 type Result<T> = std::result::Result<T, ParseError>;
+
+impl Clone for ParseError {
+  fn clone(&self) -> Self {
+    let &ParseError {pos, level, ref msg} = self;
+    ParseError {pos, level, msg: format!("{}", msg).into()}
+  }
+}
 
 impl ParseError {
   pub fn new(pos: impl Into<Span>, msg: BoxError) -> ParseError {
@@ -48,26 +66,27 @@ impl ParseError {
   }
 }
 
-struct Parser<'a> {
-  source: &'a [u8],
-  errors: Vec<ParseError>,
-  imports: Vec<(Span, String)>,
-  idx: usize,
+pub struct Parser<'a> {
+  pub source: &'a [u8],
+  pub errors: Vec<ParseError>,
+  pub imports: Vec<(Span, String)>,
+  pub idx: usize,
 }
 
-fn ident_start(c: u8) -> bool { b'a' <= c && c <= b'z' || b'A' <= c && c <= b'Z' || c == b'_' }
-fn ident_rest(c: u8) -> bool { ident_start(c) || b'0' <= c && c <= b'9' }
-fn lisp_ident(c: u8) -> bool { ident_rest(c) || b"!%&*/:<=>?^~+-.@".contains(&c) }
+pub fn ident_start(c: u8) -> bool { b'a' <= c && c <= b'z' || b'A' <= c && c <= b'Z' || c == b'_' }
+pub fn ident_rest(c: u8) -> bool { ident_start(c) || b'0' <= c && c <= b'9' }
+pub fn lisp_ident(c: u8) -> bool { ident_rest(c) || b"!%&*/:<=>?^~+-.@".contains(&c) }
+pub fn whitespace(c: u8) -> bool { c == b' ' || c == b'\n' }
 
 impl<'a> Parser<'a> {
-  fn cur(&self) -> u8 { self.source[self.idx] }
-  fn cur_opt(&self) -> Option<u8> { self.source.get(self.idx).cloned() }
+  pub fn cur(&self) -> u8 { self.source[self.idx] }
+  pub fn cur_opt(&self) -> Option<u8> { self.source.get(self.idx).cloned() }
 
-  fn err(&self, msg: BoxError) -> ParseError {
+  pub fn err(&self, msg: BoxError) -> ParseError {
     ParseError::new(self.idx..self.idx, msg)
   }
 
-  fn err_str<T>(&self, msg: &'static str) -> Result<T> {
+  pub fn err_str<T>(&self, msg: &'static str) -> Result<T> {
     Err(self.err(msg.into()))
   }
 
@@ -78,7 +97,7 @@ impl<'a> Parser<'a> {
   fn ws(&mut self) {
     while self.idx < self.source.len() {
       let c = self.cur();
-      if c == b' ' || c == b'\n' {self.idx += 1; continue}
+      if whitespace(c) {self.idx += 1; continue}
       if c == b'-' && self.source.get(self.idx + 1) == Some(&b'-') {
         self.idx += 1;
         while self.idx < self.source.len() {
@@ -90,7 +109,7 @@ impl<'a> Parser<'a> {
     }
   }
 
-  fn span(&self, s: Span) -> &'a str {
+  pub fn span(&self, s: Span) -> &'a str {
     unsafe { std::str::from_utf8_unchecked(&self.source[s.start..s.end]) }
   }
 
@@ -100,7 +119,7 @@ impl<'a> Parser<'a> {
     (Some(self.idx), self.ws()).0
   }
 
-  fn chr_err(&mut self, c: u8) -> Result<usize> {
+  pub fn chr_err(&mut self, c: u8) -> Result<usize> {
     self.chr(c).ok_or_else(|| self.err(format!("expecting '{}'", c as char).into()))
   }
 
@@ -199,16 +218,17 @@ impl<'a> Parser<'a> {
   fn binders(&mut self) -> Result<Vec<Binder>> {
     let mut bis = Vec::new();
     while let Some((span, locals, ty)) = self.binder_group()? {
-      bis.extend(locals.into_iter().map(|local|
-        Binder { span, local, ty: ty.clone() }));
+      bis.extend(locals.into_iter().map(|(x, kind)|
+        Binder { span, local: Some(x), kind, ty: ty.clone() }));
     }
     Ok(bis)
   }
 
-  fn arrows(&mut self) -> Result<Vec<Type>> {
-    let mut tys = vec![self.ty()?];
-    while let Some(_) = self.chr(b'>') {tys.push(self.ty()?)}
-    Ok(tys)
+  fn arrows(&mut self) -> Result<(Vec<Type>, Type)> {
+    let mut tys = vec![];
+    let mut ret = self.ty()?;
+    while let Some(_) = self.chr(b'>') {tys.push(mem::replace(&mut ret, self.ty()?))}
+    Ok((tys, ret))
   }
 
   fn lisp_ident(&mut self) -> Result<Span> {
@@ -273,18 +293,27 @@ impl<'a> Parser<'a> {
     } else {false}
   }
 
-  fn sexpr(&mut self) -> Result<SExpr> {
+  pub fn sexpr(&mut self) -> Result<SExpr> {
     let e = self.sexpr_dot()?;
     if self.is_atom(&e, ".") {
       Err(ParseError::new(e.span, "'.' is not a valid s-expression".into()))
     } else {Ok(e)}
   }
 
+  fn curly_list(&self, span: impl Into<Span>, curly: bool, es: Vec<SExpr>, dot: Option<SExpr>) -> SExpr {
+    SExpr::curly_list(span.into(), curly, es, dot, |e1, e2| match (&e1.k, &e2.k) {
+      (SExprKind::Atom(Atom::Ident), SExprKind::Atom(Atom::Ident)) => {
+        self.span(e1.span) == self.span(e2.span)
+      }
+      _ => false
+    })
+  }
+
   fn sexpr_list(&mut self, start: usize, curly: bool, c: u8) -> Result<SExpr> {
     let mut es = Vec::new();
     loop {
       if let Some(end) = self.chr(c) {
-        return Ok(SExpr::list(start..end, false, curly, es))
+        return Ok(self.curly_list(start..end, curly, es, None))
       }
       let e = self.sexpr_dot()?;
       if self.is_atom(&e, ".") {
@@ -292,11 +321,12 @@ impl<'a> Parser<'a> {
           return Err(ParseError::new(e.span,
             "(. x) partial dotted list is invalid".into()))
         }
-        es.push(self.sexpr()?);
-        return Ok(SExpr::list(start..self.chr_err(c)?, true, curly, es))
+        let e = self.sexpr()?;
+        let end = self.chr_err(c)?;
+        return Ok(self.curly_list(start..end, curly, es, Some(e)))
       } else if !curly && self.is_atom(&e, "@") {
         let e = self.sexpr_list(e.span.start, false, c)?;
-        return Ok(SExpr::list(start..e.span.end, false, false, {es.push(e); es}))
+        return Ok(SExpr::list(start..e.span.end, {es.push(e); es}))
       }
       es.push(e);
     }
@@ -308,14 +338,12 @@ impl<'a> Parser<'a> {
       Some(b'\'') => {
         self.idx += 1;
         let e = self.sexpr()?;
-        Ok(SExpr::list(start..e.span.end, false, false,
-          vec![SExpr::atom(start..start+1, Atom::Quote), e]))
+        Ok(SExpr::list(start..e.span.end, vec![SExpr::atom(start..start+1, Atom::Quote), e]))
       }
       Some(b',') => {
         self.idx += 1;
         let e = self.sexpr()?;
-        Ok(SExpr::list(start..e.span.end, false, false,
-          vec![SExpr::atom(start..start+1, Atom::Unquote), e]))
+        Ok(SExpr::list(start..e.span.end, vec![SExpr::atom(start..start+1, Atom::Unquote), e]))
       }
       Some(b'(') => {
         let start = self.idx; self.idx += 1; self.ws();
@@ -331,7 +359,7 @@ impl<'a> Parser<'a> {
       }
       Some(b'\"') => {
         let (span, s) = self.string()?;
-        Ok(SExpr {span, k: SExprKind::String(s)})
+        Ok(SExpr {span, k: SExprKind::String(ArcString::new(s))})
       }
       Some(b'#') => {
         self.idx += 1;
@@ -363,9 +391,15 @@ impl<'a> Parser<'a> {
       return Err(ParseError::new(sp, "invalid modifiers for this keyword".into()))
     }
     let id = self.ident_err()?;
-    let bis = self.binders()?;
-    let ty = if self.chr(b':').is_some() {Some(self.arrows()?)} else {None};
+    let mut bis = self.binders()?;
+    let ty = if self.chr(b':').is_some() {
+      let (bis2, t) = self.arrows()?;
+      bis.extend(bis2.into_iter().map(|ty| Binder {
+        span: ty.span(), local: None, kind: LocalKind::Anon, ty: Some(ty)}));
+      Some(t)
+    } else {None};
     let val = if self.chr(b'=').is_some() {Some(self.sexpr()?)} else {None};
+    if ty.is_none() && val.is_none() {return self.err_str("type or value expected")}
     Ok((self.chr_err(b';')?, Decl {mods, k, bis, id, ty, val}))
   }
 
@@ -378,15 +412,18 @@ impl<'a> Parser<'a> {
     let fmla = self.formula()?.ok_or_else(|| self.err("expected a constant".into()))?;
     let mut trim = fmla.inner();
     for i in trim.rev() {
-      if b" \n".contains(&self.source[i]) {trim.end -= 1}
+      if whitespace(self.source[i]) {trim.end -= 1}
       else {break}
     }
     for i in trim {
-      if b" \n".contains(&self.source[i]) {trim.start += 1}
+      if whitespace(self.source[i]) {trim.start += 1}
       else {break}
     }
-    if trim.any(|i| b" \n".contains(&self.source[i])) {
+    if trim.clone().any(|i| whitespace(self.source[i])) {
       return Err(ParseError::new(trim, "constant contains embedded whitespace".into()))
+    }
+    if trim.start >= trim.end {
+      return Err(ParseError::new(fmla.0, "constant is empty".into()))
     }
     Ok(Const {fmla, trim})
   }
@@ -465,21 +502,20 @@ impl<'a> Parser<'a> {
     let mut it = self.span(f.inner()).as_bytes().iter();
     let mut delims = Vec::new();
     loop {
-      fn ws(c: u8) -> bool { c == b' ' || c == b'\n' }
       delims.push(loop {
         match it.next() {
           None => return delims.into_boxed_slice(),
-          Some(&c) => if !ws(c) {break c}
+          Some(&c) => if !whitespace(c) {break c}
         }
       });
       match it.next() {
-        Some(&c) if !ws(c) => {
+        Some(&c) if !whitespace(c) => {
           delims.push(c);
           let mut end = end - it.as_slice().len();
           let start = end - 2;
           loop {
             match it.next() {
-              Some(&c) if !ws(c) => {
+              Some(&c) if !whitespace(c) => {
                 delims.push(c);
                 end += 1
               }
@@ -534,7 +570,7 @@ impl<'a> Parser<'a> {
         }
         "term"    => self.decl_stmt(start, m, id, DeclKind::Term),
         "axiom"   => self.decl_stmt(start, m, id, DeclKind::Axiom),
-        "theorem" => self.decl_stmt(start, m, id, DeclKind::Theorem),
+        "theorem" => self.decl_stmt(start, m, id, DeclKind::Thm),
         "def"     => self.decl_stmt(start, m, id, DeclKind::Def),
         "input"   => self.inout_stmt(start, m, id, false),
         "output"  => self.inout_stmt(start, m, id, true),
@@ -585,6 +621,12 @@ impl<'a> Parser<'a> {
           self.imports.push((sp, s.clone()));
           Ok(Some(Stmt {span, k: StmtKind::Import(sp, s)}))
         }
+        "exit" => {
+          self.chr_err(b';')?;
+          self.errors.push(ParseError::new(id,
+            "early exit on 'exit' command".into()));
+          Ok(None)
+        }
         k => {
           self.idx = start;
           Err(ParseError {
@@ -614,45 +656,26 @@ impl<'a> Parser<'a> {
   }
 }
 
-pub fn parse(file: Arc<LinedString>, old: Option<(Position, AST)>) ->
+pub fn parse(file: Arc<LinedString>, old: Option<(Position, Arc<AST>)>) ->
     (usize, AST) {
   let (errors, imports, idx, mut stmts) =
-    if let Some((pos, mut ast)) = old {
+    if let Some((pos, ast)) = old {
       let (ix, start) = ast.last_checkpoint(file.to_idx(pos).unwrap());
-      ast.errors.retain(|e| e.pos.start < start);
-      ast.imports.retain(|e| e.0.start < start);
-      ast.stmts.truncate(ix);
-      (ast.errors, ast.imports, start, ast.stmts)
+      match Arc::try_unwrap(ast) {
+        Ok(mut ast) => {
+          ast.errors.retain(|e| e.pos.start < start);
+          ast.imports.retain(|e| e.0.start < start);
+          ast.stmts.truncate(ix);
+          (ast.errors, ast.imports, start, ast.stmts)
+        }
+        Err(ast) => (
+          ast.errors.iter().filter(|e| e.pos.start < start).cloned().collect(),
+          ast.imports.iter().filter(|e| e.0.start < start).cloned().collect(),
+          start, ast.stmts[..ix].into())
+      }
     } else {Default::default()};
   let mut p = Parser {source: file.as_bytes(), errors, imports, idx};
+  p.ws();
   while let Some(d) = p.stmt_recover() { stmts.push(d) }
   (0, AST { errors: p.errors, imports: p.imports, source: file, stmts })
-}
-
-pub struct DelimTokens<'a>(pub usize, pub std::slice::Iter<'a, u8>);
-
-impl Iterator for DelimTokens<'_> {
-  type Item = std::result::Result<u8, Span>;
-  fn next(&mut self) -> Option<std::result::Result<u8, Span>> {
-    fn ws(c: u8) -> bool { c == b' ' || c == b'\n' }
-    let c = loop {
-      match self.1.next() {
-        None => return None,
-        Some(&c) => if !ws(c) {break c}
-      }
-    };
-    match self.1.next() {
-      Some(&c) if !ws(c) => {
-        let mut end = self.0 - self.1.as_slice().len();
-        let start = end - 2;
-        loop {
-          match self.1.next() {
-            Some(&c) if !ws(c) => end += 1,
-            _ => return Some(Err((start..end).into()))
-          }
-        }
-      }
-      _ => Some(Ok(c))
-    }
-  }
 }

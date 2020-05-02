@@ -202,13 +202,6 @@ theorem block.read.stable {l v k k'}
   (h₁ : block.read l v k) (ss : places l ⊆ stability k k') :
   block.read l v k' := sorry
 
-inductive hoare_p (Q : kcfg → Prop) : kcfg → Prop
-| zero {{k}} : Q k → hoare_p k
-| step {{k}} : (∃ k', kcfg.step k k') →
-  (∀ k', k.step k' → hoare_p k') → hoare_p k
-| exit (k : kcfg) (ret) :
-  k.k.exit ret → (ret = 0 → Q k) → hoare_p k
-
 def hoare (P : kcfg → Prop) (Q : kcfg → kcfg → Prop) :=
 ∀ {{k}}, P k → hoare_p (Q k) k
 
@@ -559,29 +552,6 @@ begin
       exact h_ih rfl } }
 end
 
-theorem hoare_p.bind {P P' : kcfg → Prop}
-  (H : ∀ {{k}}, P k → hoare_p P' k) {k} : hoare_p P k → hoare_p P' k :=
-begin
-  intro h, induction h,
-  exact H h_a,
-  exact hoare_p.step h_a (λ k', h_ih _),
-  by_cases h_ret = 0,
-  { cases H (h_a_1 h),
-    { exact hoare_p.zero a },
-    { rcases a with ⟨_, ⟨_, _, _, _, h'⟩ | ⟨_, _, _, _, _, _, _, _, h'⟩⟩,
-      { cases config.step_no_exit h' h_a },
-      { rcases h_a with ⟨k₁, h₁, ⟨e⟩⟩,
-        cases config.isIO.determ h' h₁,
-        generalize_hyp : a_h_k₁.regs RAX = r at e a_h_a,
-        induction a_h_a; cases bitvec.reify_eq₂ e } },
-    { exact hoare_p.exit _ _ a a_1 } },
-  { exact hoare_p.exit _ _ h_a h.elim },
-end
-
-theorem hoare_p.mono {P P' : kcfg → Prop}
-  (H : ∀ {{k}}, P k → P' k) {k} : hoare_p P k → hoare_p P' k :=
-hoare_p.bind (λ k h, hoare_p.zero (H h))
-
 theorem hoare.zero {P : kcfg → Prop} {Q : kcfg → kcfg → Prop}
   (H : ∀ {{k}}, P k → Q k k) : hoare P Q :=
 λ k p, hoare_p.zero (H p)
@@ -860,10 +830,11 @@ stmt.hoare_iff.2 begin
     exact λ k, mem.read'_left ⟨_, rfl⟩ },
   rw [mProp.ex_apply, mHoare.ex_l], rintro (_|⟨n⟩),
   { refine ((stmt.hoare_iff.1 H₂ h₂).mono_l _).mono_r _,
-    rintro k₂ k₃ ⟨e₂, s₂, q₂, r₂⟩ e₁ k₁ ⟨s₁, q₁, r₁⟩,
-    rw [list.length_append, ← bitvec.add_nat_assoc],
-    refine ⟨e₂, s₁.trans s₂, _⟩,
-    exact ⟨⟨exit_kind.straight, _, q₁, q₂⟩, r₂⟩ },
+    { rintro k₂ k₃ ⟨e₂, s₂, q₂, r₂⟩ e₁ k₁ ⟨s₁, q₁, r₁⟩,
+      rw [list.length_append, ← bitvec.add_nat_assoc],
+      refine ⟨e₂, s₁.trans s₂, ⟨exit_kind.straight, _, _, q₂⟩, r₂⟩,
+      sorry },
+    { } },
   { exact ⟨⟨exit_kind.label n, q₁, _⟩, r₂⟩ },
 
   have:= (((stmt.hoare_iff.1 H₁ h₁).mono_l _).comp

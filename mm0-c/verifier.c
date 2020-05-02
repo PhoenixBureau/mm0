@@ -21,12 +21,14 @@ void fail(char* err, int e) {
     fprintf(stderr, "stmt: %lX, cmd: ", (u8*)g_stmt - g_file);
     u32 data; debug_cmd_unpack(g_cmd, &data);
     debug_print_cmd(g_cmd, data);
-    index* ix = lookup_stmt(g_stmt);
+    fprintf(stderr, "\n");
+    index_entry* ix = lookup_stmt(g_stmt);
     if (ix) {
       fprintf(stderr, "at %s: ", ix->value);
     }
   }
   fprintf(stderr, "%s\n\n", err);
+  debug_print_input();
   fprintf(stderr, "cmds:\n");
   debug_print_cmds(g_cmd_start, g_cmd);
   fprintf(stderr, "\n");
@@ -36,12 +38,6 @@ void fail(char* err, int e) {
 #endif
   exit(e);
 }
-
-#define EENSURE(err, e, cond) \
-  if (__builtin_expect(!(cond), 0)) { \
-    fail(err, e); \
-  }
-#define ENSURE(err, cond) EENSURE(err, -1, cond)
 
 // Return a store_expr* given a pointer index
 #define get_expr(p) ((store_expr*)&g_store[p])
@@ -167,8 +163,8 @@ u32 cmd_unpack(u8* cmd) {
 }
 
 // Returns true if a value with type 'from' can be cast to a value of type 'to'.
-// This requires that the sorts be the same, and additionally if 'from' is a
-// name then so is 'to'.
+// This requires that the sorts be the same, and additionally if 'to' is a
+// name then so is 'from'.
 bool sorts_compatible(u64 from, u64 to) {
   u64 diff = from ^ to;
   return (diff & ~TYPE_DEPS_MASK) == 0 ||
@@ -587,8 +583,26 @@ u8* run_proof(proof_mode mode, u8* cmd) {
       case CMD_PROOF_CONV_SAVE: {
         u32 e1 = as_type(pop_stack(), STACK_TYPE_CONV);
         u32 e2 = as_type(pop_stack(), STACK_TYPE_EXPR);
-        push_heap(STACK_TYPE_EXPR |
+        push_heap(STACK_TYPE_CONV |
           ALLOC(((store_conv){e1, e2, EXPR_CONV}), sizeof(store_conv)));
+      } break;
+
+      // Save: H; S, s --> H, s; S, s
+      // Save the top of the stack to the heap, without popping it.
+      case CMD_PROOF_SAVE: {
+        u32 s = pop_stack(); g_stack_top++;
+        switch (s & STACK_TYPE_MASK) {
+          case STACK_TYPE_CO_CONV: ENSURE("Can't save proof obligation", false);
+          case STACK_TYPE_CONV: {
+            u32 e1 = s & STACK_DATA_MASK;
+            u32 e2 = *(g_stack_top-2) & STACK_DATA_MASK;
+            push_heap(STACK_TYPE_CONV |
+              ALLOC(((store_conv){e1, e2, EXPR_CONV}), sizeof(store_conv)));
+          } break;
+          default: {
+            push_heap(s);
+          } break;
+        }
       } break;
 
       default: {
@@ -603,6 +617,8 @@ u8* run_proof(proof_mode mode, u8* cmd) {
     cmd += sz;
   }
 }
+
+void parse_until(u8 stmt_type);
 
 // The main entry point for the verifier. It is given a pointer to the memory-mapped
 // proof file, and reports success by returning from the function and failure by calling
@@ -636,17 +652,18 @@ void verify(u8* file, u64 len) {
     g_stmt = stmt;
     u8* next_stmt = stmt + g_data;
     if (!(next_stmt + CMD_MAX_SIZE <= g_end)) {
-      fprintf(stderr, "stmt: %lX, g_data: %X, len: %lX\n",
-        stmt - g_file, g_data, g_end - g_file);
+      // fprintf(stderr, "stmt: %lX, g_data: %X, len: %lX\n",
+      //   stmt - g_file, g_data, g_end - g_file);
       ENSURE("proof command out of range", next_stmt + CMD_MAX_SIZE <= g_end);
     }
-
-    switch (*stmt & 0x3F) {
+    u8 stmt_type = *stmt & 0x3F;
+    switch (stmt_type) {
       // A sort command has no data in the proof stream. It simply bumps the
       // sort counter (after checking that a sort is available in the table).
       case CMD_STMT_SORT: {
         ENSURE("Next statement incorrect", g_data == sz);
         ENSURE("Step sort overflow", g_num_sorts < p->num_sorts);
+        parse_until(CMD_STMT_SORT);
         g_num_sorts++;
       } break;
 
@@ -690,6 +707,7 @@ void verify(u8* file, u64 len) {
         } else {
           ENSURE("Next statement incorrect", g_data == sz);
         }
+        if (!IS_CMD_STMT_LOCAL(stmt_type)) parse_until(CMD_STMT_DEF);
         g_num_terms++;
       } break;
 
@@ -722,6 +740,7 @@ void verify(u8* file, u64 len) {
         for (int i = 0; i < t->num_args; i++)
           push_uheap(g_heap[i]);
         run_unify(UThmEnd, (u8*)&args[t->num_args], val);
+        if (!IS_CMD_STMT_LOCAL(stmt_type)) parse_until(stmt_type);
         g_num_thms++;
       } break;
 
@@ -735,6 +754,7 @@ void verify(u8* file, u64 len) {
   ENSURE("not all sorts proved", g_num_sorts == p->num_sorts);
   ENSURE("not all terms proved", g_num_terms == p->num_terms);
   ENSURE("not all theorems proved", g_num_thms == p->num_thms);
+  parse_until(CMD_END);
 
 #ifdef HIGHWATER
   fprintf(stderr, "stack highwater: %ld / %d\n", g_stack_highwater - g_stack, STACK_SIZE);
